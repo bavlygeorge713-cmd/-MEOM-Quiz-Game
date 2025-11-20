@@ -307,4 +307,4 @@ Future features planned:
 
 ---
 
-Made with ❤️ by MEOM Academy
+Made  by bavlygeorge713-cmd for the MEOM conference
