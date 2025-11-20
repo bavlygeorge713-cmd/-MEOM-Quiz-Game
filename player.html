@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MEOM Quiz Game</title>
+  <audio id="correct-sound" src="sounds/correct_sound/correct_sound.mp3"></audio>
+  <audio id="wrong-sound" src="sounds/wrong_sound/wrong_sound.mp3"></audio>
+  <audio id="ticking-sound" src="sounds/ticking_sound/ticking_sound.mp3" loop></audio>
+  <audio id="victory-sound" src="sounds/victory_sound/victory_sound.wav"></audio>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body { background: linear-gradient(-45deg, #0a2463, #1e3d6e, #3e6ba8, #d4af37); background-size: 400% 400%; animation: gradientShift 8s ease infinite; color: #333; }
+    @keyframes gradientShift { 0%{background-position:0% 50%;} 25%{background-position:50% 25%;} 50%{background-position:100% 50%;} 75%{background-position:50% 75%;} 100%{background-position:0% 50%;} }
+
+    .admin-panel-btn { position: fixed; top: 10px; right: 10px; padding: 10px 20px; background: linear-gradient(135deg, #d4af37, #ffd700); color: #0a2463; border: none; border-radius: 8px; font-size: .9rem; font-weight: 700; cursor: pointer; z-index: 9999; box-shadow: 0 4px 15px rgba(212,175,55,.4); }
+
+    .password-modal { display:none; position:fixed; inset:0; background: rgba(0,0,0,.85); backdrop-filter: blur(12px); z-index:10000; align-items:center; justify-content:center; }
+    .password-content { background: #fff; padding: 24px; border-radius: 12px; width: 92%; max-width: 420px; text-align: center; }
+    .password-content h2 { color:#0a2463; margin-bottom: 10px; }
+    .password-input { width:100%; padding: 12px; border:2px solid #e1e8ed; border-radius: 8px; margin: 8px 0; }
+    .password-buttons { display:flex; gap: 8px; margin-top: 8px; }
+    .password-btn { flex:1; padding: 10px; border:none; border-radius:8px; font-weight:700; cursor:pointer; }
+    .password-btn-submit { background: linear-gradient(135deg, #0a2463, #1e3d6e); color:#fff; }
+    .password-btn-cancel { background: linear-gradient(135deg, #F44336, #C62828); color:#fff; }
+    .password-error { color:#F44336; font-weight:700; display:none; margin-top:6px; }
+
+    .container { max-width: 1400px; margin:0 auto; height:98vh; display:flex; flex-direction:column; gap:8px; padding: 8px; }
+    header { text-align:center; padding: 8px; background: linear-gradient(to right, #d4af37, #ffd700); border-radius: 8px; color:#0a2463; }
+    h1 { font-size: 2rem; font-weight:900; }
+    .spin-wheel-btn { padding: 10px 26px; background: linear-gradient(135deg, #0a2463, #1e3d6e); color: #fff; border:none; border-radius:8px; font-weight:900; display:block; margin:8px auto 0; }
+
+    .teams-container { display:flex; gap:8px; }
+    .team { flex:1; background:#fff; border-radius:8px; padding: 10px; text-align:center; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+    .team.active { border: 3px solid #d4af37; transform: scale(1.02); }
+    /* Active team highlight (reusable) */
+    .team-active { outline: 3px solid #ffd700; box-shadow: 0 0 15px rgba(255,215,0,0.9), 0 0 30px rgba(255,215,0,0.5); border-color: #ffd700 !important; transform: scale(1.03); transition: box-shadow .25s ease, transform .25s ease, outline .25s ease; position: relative; }
+    .team-active::after { content: ''; position: absolute; inset: -6px; border-radius: 12px; border: 3px solid rgba(255,215,0,0.6); filter: blur(3px); pointer-events: none; }
+    .team h2 { font-size: 1rem; color:#0a2463; }
+    .team-score { font-size: 1.4rem; font-weight:800; color:#0a2463; }
+
+    .current-team-indicator { text-align:center; color:#ffd700; background: linear-gradient(to right, rgba(10,36,99,.9), rgba(30,61,110,.9)); border: 2px solid #d4af37; border-radius: 6px; padding: 6px; }
+
+    .score-board { display:flex; gap:8px; }
+    .score-item { flex:1; background: #fff; border:2px solid rgba(212,175,55,.3); border-radius:6px; text-align:center; padding:8px; }
+    .score-item .score-value { font-size: 1.3rem; font-weight:900; color:#0a2463; }
+
+    .tiebreaker-notice { display:none; text-align:center; background: linear-gradient(to right, #ffd700, #ffed4a); border-radius:6px; margin: 6px 0; padding: 6px; color:#0a2463; font-weight:800; }
+
+    .numbers-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap: 4px; flex:1; }
+    .number-card { display:flex; align-items:center; justify-content:center; color:#fff; background: linear-gradient(to bottom right, #3e6ba8, #1e3d6e); border-radius: 4px; font-weight:900; cursor:pointer; user-select:none; }
+    .number-card:hover:not(.disabled):not(.answered):not(.empty) { transform: translateY(-2px); }
+    .number-card.empty { background: transparent; box-shadow:none; cursor: default; }
+    .number-card.disabled { opacity:.55; cursor: not-allowed; }
+    .number-card.answered { opacity:.95; border: 2px solid #d4af37; box-shadow: 0 0 0 3px #d4af37 inset, 0 0 12px rgba(212, 175, 55, 0.6); }
+    .number-card.timeout { background: linear-gradient(to bottom right, #9E9E9E, #616161); }
+    .number-card.tiebreaker-card { background: linear-gradient(to bottom right, #ffd700, #ff9800); color:#0a2463; border: 2px solid #0a2463; }
+    /* Per-team coloring for answered cards */
+    .number-card.answered.correct-team { background: linear-gradient(to bottom right, #4CAF50, #2E7D32); }
+    .number-card.answered.wrong-team  { background: linear-gradient(to bottom right, #F44336, #C62828); }
+   
+    .question-modal { display:none; position:fixed; inset:0; background: rgba(0,0,0,.85); z-index:2000; align-items:center; justify-content:center; padding: 10px; }
+    .question-content { background: #fff; border-radius: 12px; width:95%; max-width:800px; padding: 18px; }
+    .question-number { text-align:center; color:#0a2463; font-weight:900; margin-bottom: 10px; }
+    .question-text { text-align:center; font-size: 1.3rem; font-weight:800; color:#1e3d6e; margin-bottom:14px; }
+    .timer { text-align:center; font-size: 2rem; font-weight:900; color:#0a2463; margin: 6px 0 12px; }
+    .timer.warning { color:#ff4444; }
+    .options-container { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .option { padding: 14px; border:3px solid rgba(30,61,110,.2); border-radius:10px; cursor:pointer; font-weight:700; color:#1e3d6e; }
+    /* New answer option class with hover */
+    .answer-option { padding: 14px; border:3px solid rgba(30,61,110,.2); border-radius:10px; cursor:pointer; font-weight:700; color:#1e3d6e; background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(245,247,255,.95)); transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease, background-color .2s ease; }
+    .answer-option:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 8px 20px rgba(10,36,99,.18); border-color: rgba(30,61,110,.45); background: linear-gradient(135deg, rgba(30,61,110,.08), rgba(10,36,99,.06)); }
+    .answer-option.disabled { cursor: not-allowed; opacity:.6; pointer-events:none; }
+    .answer-option.correct { border-color:#4CAF50; color:#2E7D32; }
+    .answer-option.wrong { border-color:#F44336; color:#C62828; }
+    .option.disabled { opacity:.6; cursor: not-allowed; }
+    .option.correct { border-color:#4CAF50; color:#2E7D32; }
+    .option.wrong { border-color:#F44336; color:#C62828; }
+    .feedback { text-align:center; min-height: 36px; margin-top: 10px; font-weight:900; }
+    .next-btn { display:none; margin: 12px auto 0; padding: 12px 24px; border:none; border-radius: 22px; background: linear-gradient(135deg, #d4af37, #ffd700); color:#0a2463; font-weight:900; }
+
+    .wheel-modal { display:none; position:fixed; inset:0; background: rgba(0,0,0,.95); z-index:3000; align-items:center; justify-content:center; }
+    .wheel-content { background: #fff; border-radius: 12px;width:95%;max-width:600px;padding: 22px;text-align:center; margin-top: -40px; }
+    .wheel-title { font-size: 2rem; font-weight:900; color:#0a2463; margin-bottom:8px; }
+    .wheel { position: relative; width: 380px; height: 380px; margin: 12px auto; border: 10px solid #fff; border-radius: 50%; box-shadow: 0 12px 36px rgba(0,0,0,.35); transition: transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99); overflow: hidden; }
+    .wheel-pointer { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); width: 36px;height: 36px;background: linear-gradient(135deg, #ff4444, #cc0000); clip-path: polygon(50% 0%, 0% 100%, 100% 100%);}
+    .wheel-section { position:absolute; width:50%; height:50%; left:50%; top:0; transform-origin: 0% 100%; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+    .wheel-text { position:absolute; color:#fff; font-weight:900; font-size: 1rem; white-space:nowrap; text-shadow: 0 2px 4px rgba(0,0,0,.5); }
+    .wheel-close-btn { position: fixed;  /* ← Changed from absolute to fixed */ top: calc(48vh - 250px);  /* Position relative to centered modal */right: calc(50vw - 280px);  /* Adjust based on modal width */font-size: 32px;  font-weight: 900;  color: #fff;  /* ← Changed to white for visibility against dark background */cursor: pointer;  user-select: none; transition: 0.2s ease;  z-index: 3001;  /* ← Higher than modal's 3000 */text-shadow: 0 2px 8px rgba(0,0,0,0.8);  /* Add shadow for visibility */}
+    .wheel-close-btn:hover { transform: scale(1.15);color: #ff4444;  /* ← Changed to red */}
+    .wheel-label { position: absolute; left: 50%; top: 50%; transform-origin: 50% 50%;font-weight: 900; color: #fff;text-shadow: 0 2px 4px rgba(0,0,0,.5); white-space: nowrap;max-width: 200px;    text-overflow: ellipsis;overflow: hidden;font-size: 12px;      letter-spacing: .5px;}
+    .wheel-spin-btn { padding: 12px 30px; background: linear-gradient(135deg, #0a2463, #1e3d6e); color:#fff; border:none; border-radius:22px; font-weight:900; }
+    .wheel-result { display:none; margin-top:10px; }
+    .start-game-btn { display:none; margin-top: 10px; padding: 12px 30px; border:none; border-radius:22px; background: linear-gradient(135deg, #d4af37, #ffd700); color:#0a2463; font-weight:900; }
+
+    .winner-modal { display:none; position:fixed; inset:0; background: rgba(0,0,0,.9); z-index:3500; align-items:center; justify-content:center; }
+    .winner-content { background:#fff; padding: 28px; border-radius:12px; width:92%; max-width:600px; text-align:center; }
+    .trophy { font-size: 6rem; }
+    .winner-title { font-size:2rem; color:#d4af37; font-weight:900; }
+    .winner-team { font-size:1.6rem; color:#0a2463; font-weight:900; margin: 10px 0; }
+    .winner-scores { margin-top:6px; color:#1e3d6e; }
+    /* Utility */
+    .hidden { display: none !important; }
+    /* Tiebreaker container */
+    .tiebreaker-container { display: none; margin: 6px 0 8px; }
+    .tiebreaker-container.active { display: block; animation: fadeIn .25s ease; }
+    .exit-player-btn { padding: 8px 14px; background: linear-gradient(135deg, #F44336, #C62828); color:#fff; border:none; border-radius:8px; font-weight:800; position:fixed; left:10px; top:10px; cursor:pointer; z-index:9999; }
+    .victory-actions { display:flex; gap:10px; margin-top:10px; justify-content:center; }
+  </style>
+</head>
+<body>
+  <button class="admin-panel-btn" id="admin-panel-btn">🔧 Admin Panel</button>
+  <button class="exit-player-btn" id="exit-player-btn">Exit Game</button>
+  <div class="password-modal" id="password-modal">
+    <div class="password-content">
+      <h2>🔐 Admin Access</h2>
+      <p style="color:#666;">Enter password to access admin panel</p>
+      <input id="password-input" type="password" class="password-input" placeholder="Enter password" />
+      <div id="password-error" class="password-error">❌ Incorrect password</div>
+      <div class="password-buttons">
+        <button class="password-btn password-btn-cancel" id="password-cancel">Cancel</button>
+        <button class="password-btn password-btn-submit" id="password-submit">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wheel-modal" id="wheel-modal">
+     <div class="wheel-close-btn" onclick="closeWheelModal()">×</div>
+    <div class="wheel-content">
+     
+      <h1 class="wheel-title">TEAM SELECTION</h1>
+      <p style="color:#1e3d6e;">Spin the wheel to determine which team starts first!</p>
+      <div style="position:relative;width:380px;height:380px;margin:0 auto 6px;">
+        <div class="wheel-pointer"></div>
+        <div id="wheel" class="wheel"></div>
+      </div>
+      <button id="wheel-spin-btn" class="wheel-spin-btn">SPIN WHEEL</button>
+      <div id="wheel-result" class="wheel-result">
+        <div id="result-team" style="font-weight:900;color:#0a2463;font-size:1.2rem;"></div>
+      </div>
+      <button id="start-game-btn" class="start-game-btn">START GAME</button>
+    </div>
+  </div>
+
+  <div class="winner-modal" id="winner-modal">
+    <div class="winner-content">
+      <div class="trophy">🏆</div>
+      <div class="winner-title">CHAMPIONS!</div>
+      <div id="winner-team-name" class="winner-team"></div>
+      <div id="winner-scores" class="winner-scores"></div>
+      <div class="victory-actions">
+        <button id="celebrate-btn" class="spin-wheel-btn" style="background: linear-gradient(135deg, #4CAF50, #2E7D32);">Play Again</button>
+        <button id="exit-app-btn" class="spin-wheel-btn" style="background: linear-gradient(135deg, #F44336, #C62828);">Exit</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" style="display:none;">
+    <header>
+      <h1>Quiz Game</h1>
+      <button id="spin-wheel-btn" class="spin-wheel-btn">SPIN WHEEL TO START</button>
+    </header>
+
+    <div id="teams-container" class="teams-container"></div>
+
+    <div class="current-team-indicator">
+      Current Team: <span id="current-team-name">Spin the wheel to start!</span>
+    </div>
+
+    <div class="score-board">
+      <div class="score-item"><div>Current Turn</div><div id="current-turn" class="score-value">Spin wheel first</div></div>
+      <div class="score-item"><div>Questions Left</div><div id="remaining-count" class="score-value">0</div></div>
+    </div>
+
+    <div id="tiebreaker-notice" class="tiebreaker-notice">🏆 TIEBREAKER! Click the golden question below! 🏆</div>
+
+    <div id="tiebreaker-container" class="tiebreaker-container hidden">
+      <div id="tiebreaker-card-large" class="number-card tiebreaker-card" style="height: 84px; font-size: 1.6rem; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+        🏆 TIEBREAKER QUESTION
+      </div>
+    </div>
+
+    <div id="numbers-container" class="numbers-grid"></div>
+  </div>
+
+  <div id="question-modal" class="question-modal">
+    <div class="question-content">
+      <button id="close-modal" class="next-btn" style="float:right;">Close</button>
+      <div id="question-number" class="question-number">Question #1</div>
+      <div id="question-text" class="question-text">Loading...</div>
+      <div id="timer" class="timer">30</div>
+      <div id="options-container" class="options-container"></div>
+      <div id="feedback" class="feedback"></div>
+      <button id="next-btn" class="next-btn">Next Question</button>
+    </div>
+  </div>
+
+  <script>
+    let gameState = null;
+    let settings = null;
+    let timerInterval = null;
+    let timeRemaining = 30;
+    let gameStarted = false;
+    let questionAnswers = {};
+    let wheelModalAutoShown = false;
+    let tickingActive = false; // ensure only one ticking loop and start only in last 10s
+    // Audio refs (player side only)
+    let A_CORRECT, A_WRONG, A_TICK, A_VICTORY;
+
+    window.addEventListener('pywebviewready', async () => {
+      // Bind audio elements
+      A_CORRECT = document.getElementById('correct-sound');
+      A_WRONG = document.getElementById('wrong-sound');
+      A_TICK = document.getElementById('ticking-sound');
+      A_VICTORY = document.getElementById('victory-sound');
+      await loadInitial();
+      document.querySelector('.container').style.display = 'flex';
+    });
+
+    async function loadInitial() {
+      try {
+        const s = await pywebview.api.get_settings(); if (s.success) { settings = s.settings; }
+        await refreshState();
+        applySettings();
+        if (gameState.wheel_spun && !gameState.game_started) {
+          document.getElementById('wheel-result').style.display = 'block';
+          document.getElementById('start-game-btn').style.display = 'block';
+          renderWheel();
+        } else if (gameState.game_started) {
+          gameStarted = true;
+          await initGame();
+        }
+      } catch (e) { console.error('init', e); }
+    }
+
+    async function refreshState() {
+      const r = await pywebview.api.get_game_state(); if (r.success) gameState = r.game_state; updateScoreboard();
+    }
+
+    function applySettings() {
+      const numTeams = settings.number_of_teams || 2;
+      const teamsContainer = document.getElementById('teams-container'); teamsContainer.innerHTML='';
+      for (let i=1;i<=numTeams;i++) {
+        const el=document.createElement('div'); el.className='team'; el.id=`team${i}`; el.innerHTML=`<h2 id="team${i}-name">${settings[`team${i}_name`]||`Team ${i}`}</h2><div id="team${i}-score" class="team-score">0</div>`; teamsContainer.appendChild(el);
+      }
+      timeRemaining = settings.timer_duration || 30;
+      renderWheel();
+    }
+
+    function renderWheel() {
+      const wheel = document.getElementById('wheel');
+      wheel.innerHTML = '';
+      const n = settings.number_of_teams || 2;
+      const anglePer = 360 / n;
+      const colors = ['#1976d2','#fb8c00','#00897b','#7e57c2'];
+      // Build a perfectly centered conic-gradient starting at top (-90deg)
+      const stops = [];
+      for (let i = 0; i < n; i++) {
+        const start = i * anglePer;
+        const end = start + anglePer;
+        stops.push(`${colors[i % colors.length]}   ${start}deg ${end}deg`);
+      }
+      wheel.style.background = `conic-gradient(from -90deg, ${stops.join(',')})`;
+
+      // Add labels positioned by polar transform but counter-rotated to remain horizontal
+      const labelRadius = 120; // px from center (for 260px wheel with 8px border)
+      for (let i = 0; i < n; i++) {
+        const centerAngle = (i * anglePer) + (anglePer / 2); // degrees from top
+        const label = document.createElement('div');
+        label.className = 'wheel-label';
+        label.textContent = settings[`team${i+1}_name`] || `Team ${i+1}`;
+        // Rotate to visual angle (from top), move outward, then counter-rotate text to keep horizontal
+        const visualAngle = centerAngle - 90;
+        label.style.transform = `translate(-50%, -50%) rotate(${visualAngle}deg) translate(0, -${labelRadius}px) rotate(${-visualAngle}deg)`;
+        wheel.appendChild(label);
+      }
+
+      const spinBtn = document.getElementById('wheel-spin-btn');
+      if (gameState.wheel_spun) { spinBtn.disabled = true; spinBtn.textContent = 'WHEEL SPUN'; }
+    }
+
+    function closeWheelModal() {
+  const modal = document.getElementById('wheel-modal');
+  modal.style.display = 'none';
+}
+
+    function buildSlice(angle, start) {
+      // Build a smoother pie slice to reduce jagged edges and misalignment
+      const pts = ['50% 50%'];
+      const n = Math.max(10, Math.ceil(angle / 3));
+      const r = 48; // slightly less than 50% to avoid clipping the border
+      for (let j = 0; j <= n; j++) {
+        const a = start + (j / n) * angle;
+        const rad = (a - 90) * Math.PI / 180;
+        const x = 50 + r * Math.cos(rad);
+        const y = 50 + r * Math.sin(rad);
+        pts.push(`${x}% ${y}%`);
+      }
+      return `polygon(${pts.join(',')})`;
+    }
+
+    function updateScoreboard() {
+      if (!gameState || !settings) return;
+      const n = settings.number_of_teams || 2;
+      for (let i=1;i<=n;i++){
+        const sEl=document.getElementById(`team${i}-score`), tEl=document.getElementById(`team${i}`);
+        if (sEl) sEl.textContent = gameState[`team${i}_score`]||0;
+        if (tEl) { const active = gameState.current_team===i; tEl.classList.toggle('active', active); tEl.classList.toggle('team-active', active); }
+      }
+      document.getElementById('remaining-count').textContent = gameState.remaining_questions ?? 0;
+      if (gameState.current_team){ const name=settings[`team${gameState.current_team}_name`]||`Team ${gameState.current_team}`; document.getElementById('current-team-name').textContent = name; document.getElementById('current-turn').textContent = name; }
+      const spinBtn=document.getElementById('spin-wheel-btn'); if (spinBtn){ if (gameState.wheel_spun){ spinBtn.disabled=true; spinBtn.textContent='WHEEL SPUN'; } else { spinBtn.disabled=false; spinBtn.textContent='SPIN WHEEL TO START'; } }
+      updateTiebreakerNotice(); updateQuestionCards();
+    }
+
+    function updateTiebreakerNotice(){
+      const notice=document.getElementById('tiebreaker-notice');
+      const container=document.getElementById('tiebreaker-container');
+      const btn=document.getElementById('tiebreaker-card-large');
+      const isActive = !!(gameState && gameState.tiebreaker_active);
+      notice.style.display = isActive ? 'block' : 'none';
+      if (container){
+        if (isActive) {
+          container.classList.remove('hidden');
+          container.classList.add('active');
+          // Bind click to select the actual tiebreaker question index
+          const answeredCount = gameState.answered_questions ? gameState.answered_questions.length : 0;
+          const remainingCount = (gameState.remaining_questions !== undefined ? gameState.remaining_questions : 0);
+          const total = answeredCount + remainingCount + 1; // includes tiebreaker
+          const tiebreakerIndex = total - 1;
+          btn.onclick = () => selectQuestion(tiebreakerIndex);
+          // If already answered, disable and color by result
+          // First clear any prior team color classes
+          btn.classList.remove('correct-team1','wrong-team1','correct-team2','wrong-team2','correct-team3','wrong-team3','correct-team4','wrong-team4');
+          if (gameState.answered_questions && gameState.answered_questions.includes(tiebreakerIndex)) {
+            btn.classList.add('disabled','answered');
+            if (gameState.questions_results && gameState.questions_results[tiebreakerIndex]) {
+              const d = gameState.questions_results[tiebreakerIndex];
+              if (d && d.team) btn.classList.add(d.correct ? `correct-team${d.team}` : `wrong-team${d.team}`);
+            }
+          } else {
+            btn.classList.remove('disabled');
+            // If result exists from backend (sync/refresh), apply it too
+            if (gameState.questions_results && gameState.questions_results[tiebreakerIndex]) {
+              const d = gameState.questions_results[tiebreakerIndex];
+              btn.classList.add('answered');
+              if (d && d.team) btn.classList.add(d.correct ? `correct-team${d.team}` : `wrong-team${d.team}`);
+              btn.classList.add('disabled');
+            }
+          }
+        } else {
+          container.classList.add('hidden');
+          container.classList.remove('active');
+          if (btn) { btn.onclick = null; }
+        }
+      }
+    }
+
+    function updateQuestionCards(){
+      if (!gameState) return;
+      const container = document.getElementById('numbers-container');
+      const cards = container.querySelectorAll('.number-card');
+      const tbActive = !!gameState.tiebreaker_active;
+      cards.forEach(card => {
+        if (card.classList.contains('empty')) return;
+        const idx = parseInt(card.dataset.index);
+        const isTB = card.classList.contains('tiebreaker-card');
+        const answered = gameState.answered_questions && gameState.answered_questions.includes(idx);
+        const timed = gameState.timed_out_questions && gameState.timed_out_questions.includes(idx);
+        // reset state but keep tiebreaker marker
+        card.classList.remove('disabled','answered','timeout','correct-team','wrong-team');
+        if (answered) {
+          card.classList.add('answered');
+          let d = null;
+          if (window.questionAnswers && window.questionAnswers[idx]) d = window.questionAnswers[idx];
+          else if (gameState.questions_results && gameState.questions_results[idx]) d = gameState.questions_results[idx];
+          if (d) {
+           card.classList.add(d.correct ? 'correct-team' : 'wrong-team');
+          }
+          card.classList.add('disabled');
+        }
+        if (timed) {
+          card.classList.add('timeout');
+          card.classList.add('disabled');
+        }
+        if (isTB) {
+          if (!tbActive && !answered) card.classList.add('disabled');
+        } else {
+          if (tbActive) card.classList.add('disabled');
+        }
+      });
+    }
+
+    function showWheelModal(){
+      const m=document.getElementById('wheel-modal');
+      const spin=document.getElementById('wheel-spin-btn');
+      const res=document.getElementById('wheel-result');
+      const start=document.getElementById('start-game-btn');
+      const wheel=document.getElementById('wheel');
+      res.style.display='none';
+      start.style.display='none';
+      if (wheel) wheel.style.transform='';
+      try{ if (A_TICK) { A_TICK.pause(); tickingActive=false; } }catch(_){}
+      m.style.display='flex';
+      renderWheel();
+      // Always allow spinning before game starts
+      spin.disabled = false;
+      spin.textContent = (gameState && gameState.wheel_spun && !gameState.game_started) ? 'RESPIN WHEEL' : 'SPIN WHEEL';
+    }
+
+    async function spinWheel(){
+      const wheel=document.getElementById('wheel');
+      const spinBtn=document.getElementById('wheel-spin-btn');
+      // Only allow spin before game starts
+      if (gameState && gameState.game_started) { spinBtn.disabled = true; return; }
+      spinBtn.disabled=true; spinBtn.textContent='SPINNING...';
+      try {
+        const r=await pywebview.api.spin_wheel();
+        if (!r.success) { spinBtn.disabled=false; spinBtn.textContent='SPIN WHEEL'; alert(r.error||'Failed'); return; }
+        const n=r.number_of_teams||settings.number_of_teams||2;
+        const anglePer=360/n;
+        const sel=r.starting_team;
+        const fullRot=4+Math.floor(Math.random()*3);
+        const sliceCenter = -90 + (sel - 1) * anglePer + (anglePer / 2);
+        const rotationNeeded = -sliceCenter;
+        const final = -(fullRot * 360) + rotationNeeded;
+        wheel.style.transition='transform 5s cubic-bezier(0.17,0.67,0.12,0.99)';
+        requestAnimationFrame(()=>wheel.style.transform=`rotate(${final}deg)`);
+        wheel.addEventListener('transitionend', ()=>{
+          document.getElementById('wheel-result').style.display='block';
+          document.getElementById('result-team').textContent = r.team_name;
+          document.getElementById('start-game-btn').style.display = 'block';
+          spinBtn.textContent = 'RESPIN WHEEL';
+          spinBtn.disabled = false;
+          updateScoreboard();
+        }, {once:true});
+      } catch(e){ console.error('spin',e); spinBtn.disabled=false; spinBtn.textContent='SPIN WHEEL'; }
+    }
+    async function startGame(){ const r=await pywebview.api.start_game(); if (r.success){ gameState=r.game_state; gameStarted=true; document.getElementById('wheel-modal').style.display='none'; updateScoreboard(); await initGame(); } }
+
+    async function initGame(){ const c=document.getElementById('numbers-container'); c.innerHTML=''; const answered=gameState.answered_questions?gameState.answered_questions.length:0; const remaining=(gameState.remaining_questions!==undefined?gameState.remaining_questions:0); const total=answered+remaining+1; const regular=total-1; for (let i=1;i<=25;i++){
+        const card=document.createElement('div');
+        if (i<=regular){
+          const idx=i-1;
+          card.className='number-card';
+          card.textContent=i;
+          card.dataset.index=idx;
+          const answered = gameState.answered_questions && gameState.answered_questions.includes(idx);
+          const timed = gameState.timed_out_questions && gameState.timed_out_questions.includes(idx);
+          if (answered) {
+            card.classList.add('answered','disabled');
+            let d = null;
+            if (window.questionAnswers && window.questionAnswers[idx]) d = window.questionAnswers[idx];
+            else if (gameState.questions_results && gameState.questions_results[idx]) d = gameState.questions_results[idx];
+            if (d) {
+              card.classList.add(d.correct ? `correct-team${d.team}` : `wrong-team${d.team}`);
+            }
+          }
+          if (timed) card.classList.add('timeout','disabled');
+          card.addEventListener('click', ()=>selectQuestion(idx));
+        } else if (i===regular+1) {
+          // Hide tiebreaker from grid completely unless active; leave empty placeholder to keep grid shape
+          card.className='number-card empty';
+        } else { card.className='number-card empty'; }
+        c.appendChild(card);
+      }
+      updateTiebreakerNotice(); updateQuestionCards();
+    }
+    
+
+    async function selectQuestion(index){ if (!gameStarted) return; if (gameState.answered_questions && gameState.answered_questions.includes(index)) return; try{ const r=await pywebview.api.get_question(index); if (r.success){ gameState.current_question_index=index; displayQuestion(r.question, r.is_tiebreaker); } else alert(r.error||'Cannot select question'); }catch(e){ console.error('selectQuestion',e);} }
+
+    function displayQuestion(question, isTB){
+      document.getElementById('question-modal').style.display='flex';
+      const teamName=settings[`team${gameState.current_team}_name`]||`Team ${gameState.current_team}`;
+      document.getElementById('question-number').textContent=isTB?`🏆 TIEBREAKER - ${teamName}`:`Question #${question.id+1} - ${teamName}`;
+      document.getElementById('question-text').textContent=question.question;
+      const oc=document.getElementById('options-container'); oc.innerHTML='';
+      question.options.forEach((opt,i)=>{ const d=document.createElement('div'); d.className='answer-option'; d.textContent=opt; d.onclick=()=>selectAnswer(i); oc.appendChild(d); });
+      document.getElementById('feedback').textContent=''; document.getElementById('next-btn').style.display='none';
+      // Prepare ticking but do not start until last 10 seconds
+      try{ if (A_TICK){ A_TICK.pause(); A_TICK.currentTime=0; } }catch(_){ }
+      tickingActive = false;
+      startTimer();
+    }
+
+    function startTimer(){
+      timeRemaining = settings.timer_duration || 30;
+      const t=document.getElementById('timer');
+      t.textContent=timeRemaining;
+      t.classList.remove('warning');
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval=setInterval(()=>{
+        timeRemaining--;
+        t.textContent=timeRemaining;
+        if (timeRemaining<=10) {
+          t.classList.add('warning');
+          if (!tickingActive) {
+            try{ if (A_TICK){ A_TICK.pause(); A_TICK.currentTime=0; A_TICK.play().catch(()=>{}); } }catch(_){ }
+            tickingActive = true;
+          }
+        }
+        if (timeRemaining>10 && tickingActive) {
+          try{ if (A_TICK) A_TICK.pause(); }catch(_){ }
+          tickingActive=false;
+        }
+        if (timeRemaining<=0){
+          clearInterval(timerInterval);
+          try{ if (A_TICK) A_TICK.pause(); }catch(_){ }
+          tickingActive=false;
+          handleTimeout();
+        }
+      }, 1000);
+    }
+
+    async function handleTimeout(){
+      if (gameState.current_question_index==null) return;
+      // Stop ticking immediately
+      try{ if (A_TICK) A_TICK.pause(); tickingActive=false; }catch(_){ }
+      try{ const r=await pywebview.api.handle_timeout(gameState.current_question_index); if (r.success){ if (r.game_state) gameState=r.game_state; await refreshState(); const fb=document.getElementById('feedback'); fb.textContent="Time's up!"; document.getElementById('next-btn').style.display='block'; if (r.game_ended && r.winner){ setTimeout(()=>showWinnerAnnouncement(r.winner), 1200); } } }catch(e){ console.error('timeout',e); }
+    }
+
+    async function selectAnswer(sel){
+      if (gameState.current_question_index==null) return;
+      const btns=document.querySelectorAll('.answer-option');
+      btns.forEach(b=>{ b.style.pointerEvents='none'; b.classList.add('disabled'); });
+      // Stop timer sound immediately
+      clearInterval(timerInterval);
+      try{ if (A_TICK) A_TICK.pause(); tickingActive=false; }catch(_){ }
+      try{
+        const idx=gameState.current_question_index; const teamAt=gameState.current_team;
+        const r=await pywebview.api.check_answer(idx, sel);
+        if (r.success){ if (r.game_state) gameState=r.game_state; questionAnswers[idx] = { team: teamAt, correct: r.is_correct||r.correct };
+          if (r.correct_answer!==undefined && btns[r.correct_answer]) btns[r.correct_answer].classList.add('correct'); if (!r.is_correct && btns[sel]) btns[sel].classList.add('wrong');
+          const fb=document.getElementById('feedback'); if (r.is_correct||r.correct){ fb.textContent = `Correct! +${settings.points_correct} points!`; try{ if (A_CORRECT){ A_CORRECT.pause(); A_CORRECT.currentTime=0; A_CORRECT.play().catch(()=>{});} }catch(_){ } }
+          else { fb.textContent = 'Incorrect!'; try{ if (A_WRONG){ A_WRONG.pause(); A_WRONG.currentTime=0; A_WRONG.play().catch(()=>{});} }catch(_){ } }
+          updateScoreboard(); document.getElementById('next-btn').style.display='block'; if (r.game_ended && r.winner){ setTimeout(()=>showWinnerAnnouncement(r.winner), 1000); }
+        } else { alert(r.error||'Error'); btns.forEach(b=>{ b.style.pointerEvents='auto'; b.classList.remove('disabled'); }); }
+      }catch(e){ console.error('answer',e); }
+    }
+
+    async function continueGame(){
+      document.getElementById('question-modal').style.display='none';
+      clearInterval(timerInterval);
+      try{ if (A_TICK) A_TICK.pause(); tickingActive=false; }catch(_){ }
+      await refreshState();
+      updateTiebreakerNotice();
+    }
+
+    function showWinnerAnnouncement(w){
+      const n=settings.number_of_teams||2; let name='';
+      if (w==='TIE'){ name="IT'S A TIE!"; } else if (w && w.startsWith('TEAM')){ const t=parseInt(w.replace('TEAM','')); name=settings[`team${t}_name`]||`Team ${t}`; } else { name='UNKNOWN'; }
+      document.getElementById('winner-team-name').textContent=name;
+      let text='Final Scores:<br>';
+      for(let i=1;i<=n;i++){ const tn=settings[`team${i}_name`]||`Team ${i}`; const sc=gameState[`team${i}_score`]||0; text += `${tn}: ${sc}<br>`; }
+      document.getElementById('winner-scores').innerHTML=text;
+      try{ if (A_VICTORY){ A_VICTORY.pause(); A_VICTORY.currentTime=0; A_VICTORY.play().catch(()=>{}); } }catch(_){ }
+      document.getElementById('winner-modal').style.display='flex';
+    }
+
+    async function restartGame(){ try{ await pywebview.api.restart_game(); gameStarted=false; questionAnswers={}; document.getElementById('winner-modal').style.display='none'; await refreshState(); await initGame(); showWheelModal(); }catch(e){ console.error('restart',e); } }
+
+    // Events
+    document.getElementById('admin-panel-btn').addEventListener('click', ()=>{ document.getElementById('password-modal').style.display='flex'; document.getElementById('password-input').value=''; document.getElementById('password-error').style.display='none'; });
+    document.getElementById('password-cancel').addEventListener('click', ()=>{ document.getElementById('password-modal').style.display='none'; });
+    document.getElementById('password-submit').addEventListener('click', async ()=>{ const pwd=document.getElementById('password-input').value; try{ const r=await pywebview.api.open_admin_panel(pwd); if(r.success){ document.getElementById('password-modal').style.display='none'; } else document.getElementById('password-error').style.display='block'; }catch(e){ document.getElementById('password-error').style.display='block'; } });
+
+    document.getElementById('spin-wheel-btn').addEventListener('click', showWheelModal);
+    document.getElementById('wheel-spin-btn').addEventListener('click', spinWheel);
+    document.getElementById('start-game-btn').addEventListener('click', startGame);
+    document.getElementById('next-btn').addEventListener('click', continueGame);
+    document.getElementById('close-modal').addEventListener('click', continueGame);
+    document.getElementById('celebrate-btn').addEventListener('click', async ()=>{
+      try{
+        const r = await pywebview.api.reset_game();
+        if (r && r.success){
+          document.getElementById('winner-modal').style.display='none';
+          // Clear local state persistence
+          gameStarted=false; questionAnswers={};
+          await refreshState();
+          await initGame();
+          showWheelModal();
+          wheelModalAutoShown = true;
+        }
+      }catch(e){ console.error('play-again', e); }
+    });
+    document.getElementById('exit-app-btn').addEventListener('click', async ()=>{ try{ await pywebview.api.exit_application(); }catch(e){} });
+    document.getElementById('exit-player-btn').addEventListener('click', async ()=>{ try{ await pywebview.api.close_player_window(); }catch(e){} });
+
+    // Sync from Admin
+    window.syncFromAdmin = async function(){
+      try{
+        const s=await pywebview.api.get_settings();
+        if (s.success) settings=s.settings;
+        await refreshState();
+        applySettings();
+        if (gameStarted) await initGame();
+        // Auto-open wheel after a reset triggered from Admin overlay
+        if (gameState && !gameState.game_started && !gameState.wheel_spun && !wheelModalAutoShown){
+          showWheelModal();
+          wheelModalAutoShown = true;
+        }
+      }catch(e){ console.error('sync',e); }
+    };
+  </script>
+</body>
+</html>

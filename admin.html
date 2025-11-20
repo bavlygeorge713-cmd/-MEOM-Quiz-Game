@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Admin Panel - MEOM Quiz Game</title>
+  <audio id="correct-sound" src="sounds/correct_sound/correct_sound.mp3"></audio>
+  <audio id="wrong-sound" src="sounds/wrong_sound/wrong_sound.mp3"></audio>
+  <audio id="ticking-sound" src="sounds/ticking_sound/ticking_sound.mp3" loop></audio>
+  <audio id="victory-sound" src="sounds/victory_sound/victory_sound.wav"></audio>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+    .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+    .header { background: linear-gradient(135deg, #0a2463, #1e3d6e); color: #fff; padding: 30px; text-align: center; }
+    .header h1 { font-size: 2.2rem; margin-bottom: 8px; }
+    .tabs { display: flex; background: #f5f7fa; border-bottom: 2px solid #e1e8ed; }
+    .tab { flex: 1; padding: 16px; text-align: center; font-weight: 600; cursor: pointer; transition: .2s; border-bottom: 3px solid transparent; }
+    .tab:hover { background: #eef2f7; }
+    .tab.active { background: #fff; border-bottom: 3px solid #0a2463; color: #0a2463; }
+    .content { padding: 24px; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .btn { padding: 10px 18px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: .2s; }
+    .btn-primary { background: linear-gradient(135deg, #0a2463, #1e3d6e); color: #fff; }
+    .btn-success { background: linear-gradient(135deg, #4CAF50, #2E7D32); color: #fff; }
+    .btn-danger  { background: linear-gradient(135deg, #F44336, #C62828); color: #fff; }
+    .btn-warning { background: linear-gradient(135deg, #FF9800, #E65100); color: #fff; }
+    .btn-info    { background: linear-gradient(135deg, #2196F3, #0D47A1); color: #fff; }
+    .grid { display: grid; gap: 16px; }
+    .grid.auto { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .card { background: #f8f9fa; padding: 16px; border-radius: 10px; border: 2px solid #e1e8ed; }
+    .stat { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 20px; border-radius: 10px; text-align: center; }
+    .stat .value { font-size: 2rem; font-weight: 800; }
+    .question-item { background: #f8f9fa; padding: 16px; border-radius: 10px; border-left: 5px solid #0a2463; margin-bottom: 12px; transition: background-color .25s ease, border-color .25s ease; }
+    .question-item.tiebreaker { border-left-color: #d4af37; background: linear-gradient(135deg, #fff9e6, #f8f9fa); }
+    .question-item.question-correct { background: #e8f5e9; border-left-color: #2E7D32; }
+    .question-item.question-wrong { background: #ffebee; border-left-color: #C62828; }
+    .question-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; margin-bottom: 6px; color: #0a2463; font-weight: 600; }
+    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 2px solid #e1e8ed; border-radius: 8px; }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #0a2463; }
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.7); z-index: 1000; align-items: center; justify-content: center; }
+    .modal.active { display: flex; }
+    .modal .modal-content { background: #fff; padding: 20px; border-radius: 12px; width: 92%; max-width: 820px; max-height: 90vh; overflow: auto; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; }
+    .close-modal { border: none; background: none; font-size: 2rem; cursor: pointer; }
+    .alert { padding: 12px; border-radius: 8px; margin: 8px 0; }
+    .alert-success { background: #d4edda; color: #155724; }
+    .alert-error { background: #f8d7da; color: #721c24; }
+    .note { color: #444; font-size: .9rem; margin-top: 6px; }
+    /* Team flash feedback */
+    .card { transition: background-color 0.4s ease; }
+    .team-correct { background-color: #28a745 !important; }
+    .team-wrong { background-color: #dc3545 !important; }
+    /* Active team highlight */
+    .team-active { outline: 3px solid #ffd700; box-shadow: 0 0 15px rgba(255,215,0,0.9), 0 0 30px rgba(255,215,0,0.5); border-color: #ffd700 !important; transform: scale(1.02); transition: box-shadow .25s ease, transform .25s ease, outline .25s ease; position: relative; }
+    .team-active::after { content: ''; position: absolute; inset: -6px; border-radius: 12px; border: 3px solid rgba(255,215,0,0.6); filter: blur(3px); pointer-events: none; }
+
+    /* Victory overlay shared styling */
+    .victory-overlay { display:none; position:fixed; inset:0; background: rgba(0,0,0,.88); z-index: 5000; align-items:center; justify-content:center; }
+    .victory-overlay.active { display:flex; }
+    .victory-card { background:#fff; border-radius: 14px; padding: 26px; width: 92%; max-width: 700px; text-align:center; }
+    .victory-title { font-size: 2rem; color:#d4af37; font-weight:900; margin-bottom:8px; }
+    .victory-team { font-size: 1.6rem; color:#0a2463; font-weight:800; margin-bottom:6px; }
+    .victory-actions { display:flex; gap: 10px; margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎮 MEOM Quiz - Administrator Panel</h1>
+      <div class="note">Control questions, settings, and game state. Wheel must be spun once to choose the starting team.</div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('dashboard', this)">📊 Dashboard</div>
+      <div class="tab" onclick="switchTab('questions', this)">📝 Questions</div>
+      <div class="tab" onclick="switchTab('settings', this)">⚙️ Settings</div>
+      <div class="tab" onclick="switchTab('game-control', this)">🎯 Game Control</div>
+    </div>
+
+    <div class="content">
+      <!-- Dashboard Tab -->
+      <div id="dashboard" class="tab-panel active">
+        <h2 style="color:#0a2463; margin-bottom: 12px;">Game Statistics</h2>
+        <div class="grid auto" id="stats"></div>
+        <div id="tiebreaker-banner" class="alert alert-success" style="display:none; margin-top:12px;">🏆 TIEBREAKER ACTIVE - Only the golden question is available</div>
+
+        <h3 style="color:#0a2463; margin:18px 0 10px;">Quick Actions</h3>
+        <div class="grid auto">
+          <div class="card">
+            <h3>Game</h3>
+            <button class="btn btn-success" onclick="forceStartGame()">▶️ Force Start</button>
+            <button class="btn btn-danger" style="margin-left:8px;" onclick="resetGame()">🔄 Reset Game</button>
+          </div>
+          <div class="card">
+            <h3>Player Window</h3>
+            <button class="btn btn-primary" onclick="openPlayerWindow()">🖥️ Open Player Window</button>
+          </div>
+          <div class="card">
+            <h3>Questions</h3>
+            <button class="btn btn-info" onclick="exportQuestions()">💾 Export</button>
+            <button class="btn btn-warning" style="margin-left:8px;" onclick="showImportModal()">📥 Import</button>
+          </div>
+        </div>
+
+        <h3 style="color:#0a2463; margin:18px 0 10px;">Team Scores</h3>
+        <div class="grid auto" id="team-scores"></div>
+      </div>
+
+      <!-- Questions Tab -->
+      <div id="questions" class="tab-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <h2 style="color:#0a2463;">Manage Questions</h2>
+          <button class="btn btn-success" onclick="showAddQuestionModal()">➕ Add Question</button>
+        </div>
+        <div id="alert-container"></div>
+        <div id="questions-list"></div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div id="settings" class="tab-panel">
+        <h2 style="color:#0a2463; margin-bottom: 10px;">Game Settings</h2>
+        <form id="settings-form" onsubmit="saveSettings(event)">
+          <div class="form-group">
+            <label>Number of Teams</label>
+            <select id="number-of-teams" onchange="updateTeamFields()" required>
+              <option value="2">2 Teams</option>
+              <option value="3">3 Teams</option>
+              <option value="4">4 Teams</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Team 1 Name</label><input id="team1-name" required /></div>
+          <div class="form-group"><label>Team 2 Name</label><input id="team2-name" required /></div>
+          <div class="form-group" id="team3-group" style="display:none;"><label>Team 3 Name</label><input id="team3-name" /></div>
+          <div class="form-group" id="team4-group" style="display:none;"><label>Team 4 Name</label><input id="team4-name" /></div>
+          <div class="form-group"><label>Timer Duration (seconds)</label><input id="timer-duration" type="number" min="10" max="120" required /></div>
+          <div class="form-group"><label>Points for Correct Answer</label><input id="points-correct" type="number" min="1" max="10" required /></div>
+          <div class="form-group"><label>Points for Wrong Answer</label><input id="points-wrong" type="number" min="-5" max="5" required /></div>
+          <button class="btn btn-primary" type="submit">💾 Save Settings</button>
+        </form>
+      </div>
+
+      <!-- Game Control Tab -->
+      <div id="game-control" class="tab-panel">
+        <h2 style="color:#0a2463; margin-bottom:10px;">Manual Game Control</h2>
+        <div class="grid auto" id="wheel-controls"></div>
+        <h3 style="color:#0a2463; margin:18px 0 10px;">Set Team Scores</h3>
+        <div class="grid auto" id="score-controls"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Victory Overlay -->
+  <div id="victory-overlay" class="victory-overlay">
+    <div class="victory-card">
+      <div class="victory-title">CHAMPIONS!</div>
+      <div id="victory-team" class="victory-team"></div>
+      <div id="victory-scores" class="note"></div>
+      <div class="victory-actions">
+        <button class="btn btn-success" id="victory-play-again">Play Again</button>
+        <button class="btn btn-danger" id="victory-exit">Exit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Question Modal -->
+  <div id="question-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-title">Add New Question</h2>
+        <button class="close-modal" onclick="closeQuestionModal()">×</button>
+      </div>
+      <form id="question-form" onsubmit="saveQuestion(event)">
+        <input type="hidden" id="question-id" value="" />
+        <div class="form-group"><label>Question Text</label><textarea id="question-text" rows="3" required></textarea></div>
+        <div class="form-group"><label>Options</label>
+          <div class="grid auto" style="grid-template-columns: 1fr 1fr;">
+            <input id="option-0" placeholder="Option A" required />
+            <input id="option-1" placeholder="Option B" required />
+            <input id="option-2" placeholder="Option C" required />
+            <input id="option-3" placeholder="Option D" required />
+          </div>
+        </div>
+        <div class="form-group"><label>Correct Answer</label>
+          <select id="correct-answer" required>
+            <option value="0">Option A</option>
+            <option value="1">Option B</option>
+            <option value="2">Option C</option>
+            <option value="3">Option D</option>
+          </select>
+        </div>
+        <button class="btn btn-success" type="submit">💾 Save Question</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Import Questions Modal -->
+  <div id="import-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Import Questions (JSON)</h2>
+        <button class="close-modal" onclick="closeImportModal()">×</button>
+      </div>
+      <div class="form-group"><label>Paste JSON Data</label><textarea id="import-json" rows="14" style="width:100%;font-family:monospace"></textarea></div>
+      <button class="btn btn-success" onclick="importQuestions()">📥 Import</button>
+    </div>
+  </div>
+
+  <button class="btn btn-success" style="position:fixed;bottom:24px;right:24px;border-radius:40px;padding:16px 22px;box-shadow:0 10px 30px rgba(76,175,80,.4);" onclick="openPlayerWindow()">🎮 Open Player Window</button>
+
+  <script>
+    let questions = [];
+    let gameState = {};
+    let settings = {};
+    let prevGameState = null;
+    let prevSettings = null;
+    const TEAM_COLORS = ['#1976d2', '#fb8c00', '#00897b', '#7e57c2'];
+
+    window.addEventListener('pywebviewready', async () => {
+      await loadAll();
+      // periodic dashboard refresh only on dashboard
+      setInterval(async () => {
+        if (document.getElementById('dashboard').classList.contains('active')) {
+          await refreshState();
+        }
+      }, 2000);
+    });
+
+    async function loadAll() {
+      try {
+        const qRes = await pywebview.api.get_all_questions();
+        if (qRes.success) questions = qRes.questions;
+        const sRes = await pywebview.api.get_settings();
+        if (sRes.success) { settings = sRes.settings; prevSettings = JSON.parse(JSON.stringify(settings)); }
+        const gRes = await pywebview.api.get_game_state();
+        if (gRes.success) { gameState = gRes.game_state; prevGameState = JSON.parse(JSON.stringify(gameState)); }
+        renderQuestions();
+        loadSettings();
+        updateDynamicControls();
+      } catch (e) { console.error('init error', e); }
+    }
+
+    async function refreshState() {
+      try {
+        const oldState = prevGameState ? JSON.parse(JSON.stringify(prevGameState)) : null;
+        const gRes = await pywebview.api.get_game_state();
+        if (gRes.success) {
+          gameState = gRes.game_state;
+        }
+        updateDynamicControls(oldState);
+        // If Questions tab is active, re-render to reflect color changes immediately
+        if (document.getElementById('questions').classList.contains('active')) {
+          renderQuestions();
+        }
+        // Show victory overlay if finished
+        maybeShowVictoryOverlay();
+        prevGameState = JSON.parse(JSON.stringify(gameState));
+      } catch(e) { console.error('refresh state', e); }
+    }
+
+    function switchTab(name, el) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      if (el) el.classList.add('active');
+      document.getElementById(name).classList.add('active');
+      if (name === 'questions') loadAll();
+      if (name === 'dashboard') refreshState();
+    }
+
+    // Questions
+    function renderQuestions() {
+      const container = document.getElementById('questions-list');
+      container.innerHTML = '';
+      questions.forEach((q, idx) => {
+        const isTie = idx === questions.length - 1;
+        const div = document.createElement('div');
+        div.className = 'question-item' + (isTie ? ' tiebreaker' : '');
+        // Apply persistent correctness coloring for answered questions
+        const answered = gameState && gameState.answered_questions && gameState.answered_questions.includes(idx);
+        if (answered && gameState.questions_results && gameState.questions_results[idx]) {
+          const res = gameState.questions_results[idx];
+          if (res && typeof res.correct === 'boolean') {
+            div.classList.add(res.correct ? 'question-correct' : 'question-wrong');
+          }
+        }
+        div.innerHTML = `
+          <h4>Question #${idx + 1}${isTie ? ' 🏆 TIEBREAKER' : ''}</h4>
+          <p><strong>${escapeHtml(q.question)}</strong></p>
+          <ul style="margin:8px 0 0 16px;">
+            ${q.options.map((opt,i)=>`<li ${i===q.correct?'style="color:#2E7D32;font-weight:700"':''}>${String.fromCharCode(65+i)}. ${escapeHtml(opt)} ${i===q.correct?'✓':''}</li>`).join('')}
+          </ul>
+          <div class="question-actions">
+            <button class="btn btn-info" onclick="editQuestion(${idx})">✏️ Edit</button>
+            ${!isTie ? `<button class="btn btn-danger" onclick="deleteQuestion(${idx})">🗑️ Delete</button>`: '<span class="note">Tiebreaker cannot be deleted</span>'}
+          </div>`;
+        container.appendChild(div);
+      });
+    }
+
+    function showAddQuestionModal() { document.getElementById('modal-title').textContent='Add Question'; document.getElementById('question-id').value=''; document.getElementById('question-form').reset(); document.getElementById('question-modal').classList.add('active'); }
+    function closeQuestionModal() { document.getElementById('question-modal').classList.remove('active'); }
+
+    function editQuestion(idx) {
+      const q = questions[idx];
+      document.getElementById('modal-title').textContent='Edit Question';
+      document.getElementById('question-id').value=idx;
+      document.getElementById('question-text').value=q.question;
+      q.options.forEach((opt,i)=>{ document.getElementById(`option-${i}`).value=opt; });
+      document.getElementById('correct-answer').value=q.correct;
+      document.getElementById('question-modal').classList.add('active');
+    }
+
+    async function saveQuestion(e) {
+      e.preventDefault();
+      const id = document.getElementById('question-id').value;
+      const text = document.getElementById('question-text').value;
+      const options = [0,1,2,3].map(i=>document.getElementById(`option-${i}`).value);
+      const correct = parseInt(document.getElementById('correct-answer').value);
+      try {
+        let res;
+        if (id === '') res = await pywebview.api.add_question(text, options, correct);
+        else res = await pywebview.api.edit_question(parseInt(id), text, options, correct);
+        if (res.success) {
+          alertBox(res.message, 'success'); closeQuestionModal(); await loadAll();
+        } else alertBox(res.error||'Error', 'error');
+      } catch(err){ alertBox('Error: '+err, 'error'); }
+    }
+
+    async function deleteQuestion(idx) {
+      if (!confirm('Delete this question?')) return;
+      try {
+        const res = await pywebview.api.delete_question(idx);
+        if (res.success) { alertBox(res.message, 'success'); await loadAll(); } else alertBox(res.error, 'error');
+      } catch(err){ alertBox('Error: '+err, 'error'); }
+    }
+
+    // Settings
+    function loadSettings() {
+      document.getElementById('team1-name').value = settings.team1_name || '';
+      document.getElementById('team2-name').value = settings.team2_name || '';
+      document.getElementById('team3-name').value = settings.team3_name || '';
+      document.getElementById('team4-name').value = settings.team4_name || '';
+      document.getElementById('number-of-teams').value = settings.number_of_teams || 2;
+      document.getElementById('timer-duration').value = settings.timer_duration || 30;
+      document.getElementById('points-correct').value = settings.points_correct || 2;
+      document.getElementById('points-wrong').value = settings.points_wrong || 0;
+      updateTeamFields();
+    }
+
+    function updateTeamFields() {
+      const n = parseInt(document.getElementById('number-of-teams').value);
+      document.getElementById('team3-group').style.display = n>=3?'block':'none';
+      document.getElementById('team4-group').style.display = n>=4?'block':'none';
+    }
+
+    async function saveSettings(e) {
+      e.preventDefault();
+      const n = parseInt(document.getElementById('number-of-teams').value);
+      const payload = {
+        team1_name: document.getElementById('team1-name').value,
+        team2_name: document.getElementById('team2-name').value,
+        team3_name: n>=3 ? document.getElementById('team3-name').value : '',
+        team4_name: n>=4 ? document.getElementById('team4-name').value : '',
+        number_of_teams: n,
+        timer_duration: parseInt(document.getElementById('timer-duration').value),
+        points_correct: parseInt(document.getElementById('points-correct').value),
+        points_wrong: parseInt(document.getElementById('points-wrong').value),
+      };
+      try {
+        const res = await pywebview.api.update_settings(payload);
+        if (res.success) { settings = res.settings; alertBox('Settings saved', 'success'); await loadAll(); }
+        else alertBox(res.error||'Error', 'error');
+      } catch(err){ alertBox('Error: '+err, 'error'); }
+    }
+
+    // Dynamic controls (dashboard & game-control)
+    function updateDynamicControls(oldState = null) {
+      // Stats
+      const stats = document.getElementById('stats');
+      stats.innerHTML = '';
+      const totalQ = questions.length;
+      const remaining = gameState.remaining_questions !== undefined ? gameState.remaining_questions : Math.max(0, totalQ-1);
+      const gameStatus = gameState.game_finished ? 'Finished' : (gameState.game_started ? 'Active' : 'Not Started');
+      stats.innerHTML += statCard('Total Questions', totalQ);
+      stats.innerHTML += statCard('Questions Left', remaining);
+      const curTeamName = gameState.current_team ? (settings[`team${gameState.current_team}_name`] || `Team ${gameState.current_team}`) : '—';
+      stats.innerHTML += statCard('Current Team', curTeamName);
+      stats.innerHTML += statCard('Status', gameStatus);
+      for (let i=1;i<=(settings.number_of_teams||2);i++) {
+        stats.innerHTML += statCard(`${settings[`team${i}_name`]||`Team ${i}`} Score`, gameState[`team${i}_score`]|0);
+      }
+      document.getElementById('tiebreaker-banner').style.display = gameState.tiebreaker_active ? 'block' : 'none';
+
+      // Team score list
+      const teamScores = document.getElementById('team-scores');
+      teamScores.innerHTML = '';
+      for (let i=1;i<=(settings.number_of_teams||2);i++) {
+        const v = gameState[`team${i}_score`]||0;
+        const div = document.createElement('div'); div.className='card'; div.id = `team-card-${i}`;
+        div.innerHTML = `<h3>${escapeHtml(settings[`team${i}_name`]||`Team ${i}`)}</h3><div class="stat" style="margin-top:8px;"><div class="value">${v}</div></div>`;
+        teamScores.appendChild(div);
+      }
+      // Apply active team highlight
+      (function highlightActive(){
+        const n = settings.number_of_teams || 2;
+        for (let i=1;i<=n;i++){
+          const el = document.getElementById(`team-card-${i}`);
+          if (el) el.classList.remove('team-active');
+        }
+        const active = document.getElementById(`team-card-${gameState.current_team}`);
+        if (active) active.classList.add('team-active');
+      })();
+      // Attempt to detect the last answering team and correctness to flash
+      if (oldState && oldState.current_team !== undefined && oldState.current_team !== gameState.current_team) {
+        const numTeams = settings.number_of_teams || 2;
+        const answeringTeam = oldState.current_team; // rotation happens after answer/timeout
+        const pointsCorrect = settings.points_correct || 0;
+        const prevScore = oldState[`team${answeringTeam}_score`] || 0;
+        const newScore = gameState[`team${answeringTeam}_score`] || 0;
+        let wasCorrect = false;
+        if (pointsCorrect > 0 && (newScore - prevScore) >= pointsCorrect) {
+          wasCorrect = true;
+        } else if (oldState.tiebreaker_active && gameState.game_finished && !gameState.tiebreaker_active) {
+          // Tiebreaker correctly answered ends game
+          wasCorrect = true;
+        } else {
+          wasCorrect = false;
+        }
+        flashTeamCard(answeringTeam, wasCorrect);
+      }
+
+      // Wheel controls + status
+      const wheel = document.getElementById('wheel-controls');
+      wheel.innerHTML = '';
+      const status = document.createElement('div'); status.className='card';
+      const wheelLocked = !!gameState.wheel_spun;
+      status.innerHTML = `<h3>🌀 Wheel Status</h3><div>State: <strong>${wheelLocked?'LOCKED':'READY'}</strong></div><div class="note" style="margin-top:4px;">Starting Team: <strong>${wheelLocked?escapeHtml(curTeamName):'TBD'}</strong></div>`;
+      wheel.appendChild(status);
+      const force = document.createElement('div'); force.className='card'; force.innerHTML='<h3>🎯 Force Wheel Result</h3>';
+      for (let i=1;i<=(settings.number_of_teams||2);i++) {
+        const b=document.createElement('button'); b.className='btn btn-primary'; b.textContent=`${settings[`team${i}_name`]||`Team ${i}`} Starts`; b.style.display='block'; b.style.width='100%'; b.style.marginTop=i>1?'8px':'0'; b.onclick=()=>forceSpinWheel(i); if (wheelLocked){ b.disabled=true; b.style.opacity='0.6'; b.title='Wheel already spun'; }
+        force.appendChild(b);
+      }
+      wheel.appendChild(force);
+
+      // Score controls
+      const sc = document.getElementById('score-controls'); sc.innerHTML='';
+      for (let i=1;i<=(settings.number_of_teams||2);i++) {
+        const name = settings[`team${i}_name`]||`Team ${i}`; const cur = gameState[`team${i}_score`]||0;
+        const div = document.createElement('div'); div.className='card';
+        div.innerHTML = `<h3>${escapeHtml(name)}</h3><div class="note">Current: <strong>${cur}</strong></div><input id="team${i}-score-input" type="number" min="0" value="${cur}" style="width:100%; padding:10px; margin:8px 0;" /><button class="btn btn-success" style="width:100%;" onclick="setTeamScore(${i})">✓ Set Score</button>`;
+        sc.appendChild(div);
+      }
+    }
+
+    function statCard(label, value){ return `<div class="stat"><div style="opacity:.9;font-size:.9rem;margin-bottom:6px;">${escapeHtml(label)}</div><div class="value">${escapeHtml(String(value))}</div></div>`; }
+
+    function flashTeamCard(team, correct){
+      const el = document.getElementById(`team-card-${team}`);
+      if (!el) return;
+      const cls = correct ? 'team-correct' : 'team-wrong';
+      el.classList.add(cls);
+      setTimeout(()=>{ el.classList.remove(cls); }, 1200);
+    }
+
+    // Game control actions
+    async function openPlayerWindow(){ try{ const r=await pywebview.api.open_player_window(); alertBox(r.message,'success'); }catch(e){ alertBox('Error: '+e,'error'); } }
+    async function forceStartGame(){ try{ const r=await pywebview.api.force_start_game(); if(!r.success) return alertBox(r.error,'error'); alertBox('Game started','success'); await refreshState(); }catch(e){ alertBox('Error: '+e,'error'); } }
+   async function forceSpinWheel(t){ 
+  try{ 
+    const r=await pywebview.api.force_spin_wheel(t); 
+    if(!r.success) return alertBox(r.error,'error'); 
+    alertBox(`Wheel forced to ${r.team_name}`,'success'); 
+    await refreshState(); 
+  }catch(e){ 
+    alertBox('Error: '+e,'error'); 
+  } 
+}
+    async function setTeamScore(i){ const v=parseInt(document.getElementById(`team${i}-score-input`).value); if(isNaN(v)||v<0) return alertBox('Invalid score','error'); try{ const r=await pywebview.api.manual_score_set(i,v); alertBox(r.message,'success'); await refreshState(); }catch(e){ alertBox('Error: '+e,'error'); } }
+    async function resetGame(){ if(!confirm('Reset the entire game?')) return; try{ const r=await pywebview.api.reset_game(); alertBox(r.message,'success'); await loadAll(); }catch(e){ alertBox('Error: '+e,'error'); } }
+
+    // Import/Export
+    async function exportQuestions(){ try{ const r=await pywebview.api.export_questions(); if(!r.success) return alertBox(r.error,'error'); const blob=new Blob([r.data],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='meom-questions.json'; a.click(); URL.revokeObjectURL(url); alertBox('Questions exported','success'); }catch(e){ alertBox('Error: '+e,'error'); } }
+    function showImportModal(){ document.getElementById('import-modal').classList.add('active'); }
+    function closeImportModal(){ document.getElementById('import-modal').classList.remove('active'); }
+    async function importQuestions(){ const json=document.getElementById('import-json').value; try{ const r=await pywebview.api.import_questions(json); if(!r.success) return alertBox(r.error,'error'); alertBox(r.message,'success'); closeImportModal(); await loadAll(); }catch(e){ alertBox('Error: '+e,'error'); } }
+
+    // Sync from player
+    window.syncFromPlayer = async function(){ await refreshState(); };
+
+    function maybeShowVictoryOverlay(){
+      try {
+        if (!gameState || !gameState.game_finished) { hideVictory(); return; }
+        const n = settings.number_of_teams || 2;
+        // Determine winner name by scanning scores
+        const scores = [];
+        for (let i=1;i<=n;i++) scores.push({team:i, score: gameState[`team${i}_score`]||0});
+        scores.sort((a,b)=>b.score-a.score);
+        let winnerName = 'IT\'S A TIE!';
+        if (!(scores.length>1 && scores[0].score===scores[1].score)) {
+          const t=scores[0].team; winnerName = settings[`team${t}_name`]||`Team ${t}`;
+        }
+        document.getElementById('victory-team').textContent = winnerName;
+        let txt = 'Final Scores:\n';
+        for (let i=1;i<=n;i++){ const tn=settings[`team${i}_name`]||`Team ${i}`; const sc=gameState[`team${i}_score`]||0; txt += `${tn}: ${sc}\n`; }
+        document.getElementById('victory-scores').textContent = txt;
+        document.getElementById('victory-overlay').classList.add('active');
+      } catch(e) {}
+    }
+    function hideVictory(){ const v=document.getElementById('victory-overlay'); if (v) v.classList.remove('active'); }
+
+    document.addEventListener('click', (e)=>{
+      if (e.target && e.target.id==='victory-play-again'){
+        (async ()=>{ try{ const r=await pywebview.api.reset_game(); if (r && r.success){ hideVictory(); await loadAll(); } }catch(err){} })();
+      }
+      if (e.target && e.target.id==='victory-exit'){
+        (async ()=>{ try{ await pywebview.api.exit_application(); }catch(err){} })();
+      }
+    });
+
+    // Utils
+    function alertBox(msg, type){ const c=document.getElementById('alert-container'); if(!c) return; const d=document.createElement('div'); d.className=`alert alert-${type}`; d.textContent=msg; c.appendChild(d); setTimeout(()=>d.remove(), 4000); }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+  </script>
+</body>
+</html>
